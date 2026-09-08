@@ -1,0 +1,409 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Business {
+  id           String            @id @default(uuid())
+  name         String
+  slug         String            @unique
+  phone        String?
+  settings     String            @default("{}") // JSON string: timezone, bufferMinutes, minBookingNotice, maxAdvanceDays
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  users        User[]
+  services     Service[]
+  staff        Staff[]
+  holidays     BusinessHoliday[]
+  customers          Customer[]
+  appointments       Appointment[]
+  whatsappIntegration WhatsAppIntegration?
+  whatsappMessages   WhatsAppMessage[]
+  whatsappConversations WhatsAppConversationSession[]
+  appointmentNotifications AppointmentNotification[]
+  reminderSettings   BusinessReminderSettings?
+  customerFollowUps  CustomerFollowUp[]
+  retentionSettings  BusinessRetentionSettings?
+  payments           Payment[]
+  paymentSettings    BusinessPaymentSettings?
+}
+
+model User {
+  id         String   @id @default(uuid())
+  email      String   @unique
+  password   String
+  role       String   // "OWNER" or "STAFF"
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Customer {
+  id           String        @id @default(uuid())
+  businessId   String
+  business     Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  name         String
+  phone        String
+  email        String?
+  status       String        @default("ACTIVE") // ACTIVE, INACTIVE
+  notes        String?
+  tags         String        @default("[]") // JSON string array: ["VIP", "Regular"]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  appointments       Appointment[]
+  whatsappMessages   WhatsAppMessage[]
+  whatsappConversations WhatsAppConversationSession[]
+  appointmentNotifications AppointmentNotification[]
+  customerFollowUps  CustomerFollowUp[]
+  payments           Payment[]
+
+  @@unique([businessId, phone])
+  @@index([businessId])
+  @@index([status])
+}
+
+model Service {
+  id              String         @id @default(uuid())
+  businessId      String
+  business        Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  name            String
+  description     String?
+  durationMinutes Int
+  price           Float
+  depositType     String         @default("NONE") // NONE, FIXED, PERCENTAGE
+  depositValue    Float          @default(0)
+  active          Boolean        @default(true)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  staffServices   StaffService[]
+  appointments    Appointment[]
+
+  @@unique([businessId, name])
+}
+
+model Staff {
+  id           String              @id @default(uuid())
+  businessId   String
+  business     Business            @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  name         String
+  phone        String?
+  email        String?
+  active       Boolean             @default(true)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  services     StaffService[]
+  workingHours StaffWorkingHours[]
+  breaks       StaffBreak[]
+  leaves       StaffLeave[]
+  appointments Appointment[]
+}
+
+model StaffService {
+  id         String   @id @default(uuid())
+  businessId String
+  staffId    String
+  serviceId  String
+  staff      Staff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  service    Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([staffId, serviceId])
+}
+
+model StaffWorkingHours {
+  id         String   @id @default(uuid())
+  businessId String
+  staffId    String
+  dayOfWeek  Int      // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+  startTime  String   // e.g. "10:00"
+  endTime    String   // e.g. "19:00"
+  enabled    Boolean  @default(true)
+  staff      Staff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@unique([staffId, dayOfWeek])
+}
+
+model StaffBreak {
+  id         String   @id @default(uuid())
+  businessId String
+  staffId    String
+  dayOfWeek  Int      // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+  startTime  String   // e.g. "13:00"
+  endTime    String   // e.g. "14:00"
+  staff      Staff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
+}
+
+model StaffLeave {
+  id         String   @id @default(uuid())
+  businessId String
+  staffId    String
+  startDate  DateTime
+  endDate    DateTime
+  reason     String?
+  createdAt  DateTime @default(now())
+  staff      Staff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
+}
+
+model BusinessHoliday {
+  id         String   @id @default(uuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  date       DateTime
+  name       String
+  createdAt  DateTime @default(now())
+
+  @@unique([businessId, date])
+}
+
+model Appointment {
+  id            String    @id @default(uuid())
+  businessId    String
+  business      Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customerId    String
+  customer      Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  staffId       String
+  staff         Staff     @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  serviceId     String
+  service       Service   @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  startAt       DateTime
+  endAt         DateTime
+  status        String    @default("CONFIRMED") // PENDING, CONFIRMED, CANCELLED, COMPLETED, NO_SHOW
+  price         Float
+  depositAmount Float     @default(0)
+  paymentStatus String    @default("UNPAID") // UNPAID, PARTIALLY_PAID, PAID
+  notes         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  notifications AppointmentNotification[]
+  customerFollowUps CustomerFollowUp[]
+  payments      Payment[]
+
+  @@index([businessId])
+  @@index([staffId, startAt, endAt])
+  @@index([customerId])
+  @@index([status])
+  @@index([startAt])
+}
+
+model HealthCheck {
+  id        Int      @id @default(autoincrement())
+  status    String
+  createdAt DateTime @default(now())
+}
+
+model WhatsAppIntegration {
+  id                 String    @id @default(uuid())
+  businessId         String    @unique
+  business           Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  phoneNumberId      String?   @unique
+  businessAccountId  String?
+  displayPhoneNumber String?
+  accessToken        String?
+  appSecret          String?
+  verifyToken        String?
+  status             String    @default("DISCONNECTED") // DISCONNECTED, CONNECTED, ERROR
+  webhookVerified    Boolean   @default(false)
+  lastError          String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([businessId])
+  @@index([phoneNumberId])
+}
+
+model WhatsAppMessage {
+  id                String    @id @default(uuid())
+  businessId        String
+  business          Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customerId        String?
+  customer          Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  whatsappMessageId String    @unique
+  direction         String    // INBOUND, OUTBOUND
+  messageType       String    @default("TEXT") // TEXT, INTERACTIVE, TEMPLATE, UNKNOWN
+  text              String?
+  status            String    @default("RECEIVED") // QUEUED, SENT, DELIVERED, READ, FAILED, RECEIVED
+  rawPayload        String?
+  timestamp         DateTime  @default(now())
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([businessId])
+  @@index([customerId])
+  @@index([status])
+  @@index([direction])
+}
+
+model WhatsAppConversationSession {
+  id            String    @id @default(uuid())
+  businessId    String
+  business      Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customerId    String
+  customer      Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  phoneNumber   String    // Normalized E.164 phone
+  state         String    @default("IDLE") // IDLE, SELECTING_SERVICE, SELECTING_DATE, SELECTING_STAFF, SELECTING_SLOT, CONFIRMING, BOOKED, CANCELLED
+  serviceId     String?
+  serviceName   String?
+  staffId       String?
+  staffName     String?
+  selectedDate  String?   // YYYY-MM-DD
+  selectedSlot  String?   // ISO string (startAt)
+  appointmentId String?
+  contextData   String?   // JSON string storing dynamic numbered options (services, dates, slots)
+  expiresAt     DateTime
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([businessId, phoneNumber])
+  @@index([businessId])
+  @@index([customerId])
+  @@index([state])
+}
+
+model AppointmentNotification {
+  id                String       @id @default(uuid())
+  businessId        String
+  business          Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  appointmentId     String
+  appointment       Appointment  @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  customerId        String?
+  customer          Customer?    @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  type              String       // BOOKING_CONFIRMATION, APPOINTMENT_REMINDER, RESCHEDULE_CONFIRMATION, CANCELLATION_CONFIRMATION, OWNER_BOOKING_NOTIFICATION
+  recipientPhone    String
+  scheduledAt       DateTime
+  sentAt            DateTime?
+  status            String       @default("PENDING") // PENDING, PROCESSING, SENT, FAILED, CANCELLED
+  providerMessageId String?
+  attempts          Int          @default(0)
+  maxAttempts       Int          @default(3)
+  lastError         String?
+  idempotencyKey    String?      @unique
+  payload           String?      // Optional JSON context metadata or message body
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  @@index([businessId])
+  @@index([appointmentId])
+  @@index([customerId])
+  @@index([status])
+  @@index([scheduledAt])
+  @@index([type])
+}
+
+model BusinessReminderSettings {
+  id                      String   @id @default(uuid())
+  businessId              String   @unique
+  business                Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  remindersEnabled        Boolean  @default(true)
+  firstReminderMinutes    Int      @default(1440) // Default 24 hours
+  firstReminderEnabled    Boolean  @default(true)
+  secondReminderMinutes   Int      @default(120)  // Default 2 hours
+  secondReminderEnabled   Boolean  @default(true)
+  ownerNotificationEnabled Boolean @default(true)
+  ownerNotificationPhone  String?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@index([businessId])
+}
+
+model CustomerFollowUp {
+  id                  String       @id @default(uuid())
+  businessId          String
+  business            Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customerId          String
+  customer            Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  sourceAppointmentId String
+  sourceAppointment   Appointment  @relation(fields: [sourceAppointmentId], references: [id], onDelete: Cascade)
+  type                String       @default("REBOOKING") // REBOOKING
+  scheduledAt         DateTime
+  sentAt              DateTime?
+  status              String       @default("PENDING") // PENDING, PROCESSING, SENT, FAILED, CANCELLED, SKIPPED
+  skipReason          String?      // CUSTOMER_REBOOKED, CUSTOMER_INACTIVE, SETTINGS_DISABLED, NO_WHATSAPP
+  attempts            Int          @default(0)
+  maxAttempts         Int          @default(3)
+  providerMessageId   String?
+  lastError           String?
+  idempotencyKey      String       @unique // rebooking_${sourceAppointmentId}
+  payload             String?      // Optional JSON context metadata
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  @@index([businessId])
+  @@index([customerId])
+  @@index([sourceAppointmentId])
+  @@index([status])
+  @@index([scheduledAt])
+  @@index([type])
+}
+
+model BusinessRetentionSettings {
+  id                      String   @id @default(uuid())
+  businessId              String   @unique
+  business                Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  rebookingFollowUpEnabled Boolean @default(true)
+  rebookingFollowUpDays   Int      @default(30)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@index([businessId])
+}
+
+model Payment {
+  id                 String       @id @default(uuid())
+  businessId         String
+  business           Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  appointmentId      String
+  appointment        Appointment  @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  customerId         String
+  customer           Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  amount             Float
+  currency           String       @default("INR")
+  type               String       @default("DEPOSIT") // DEPOSIT, FULL_PAYMENT, REFUND
+  status             String       @default("PENDING") // PENDING, INITIATED, PAID, FAILED, EXPIRED, CANCELLED, REFUNDED
+  provider           String       @default("MOCK")    // RAZORPAY, MOCK
+  providerOrderId    String?
+  providerPaymentId  String?
+  providerSignature  String?
+  paymentLink        String?
+  failureReason      String?
+  expiresAt          DateTime?
+  paidAt             DateTime?
+  idempotencyKey     String?      @unique
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  @@index([businessId])
+  @@index([appointmentId])
+  @@index([customerId])
+  @@index([status])
+  @@index([providerOrderId])
+  @@index([providerPaymentId])
+}
+
+model BusinessPaymentSettings {
+  id                         String   @id @default(uuid())
+  businessId                 String   @unique
+  business                   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  paymentEnabled             Boolean  @default(false)
+  paymentMode                String   @default("NONE") // NONE, FIXED_DEPOSIT, PERCENTAGE_DEPOSIT, FULL_PAYMENT
+  depositAmount              Float    @default(0)
+  depositPercentage          Float    @default(0)
+  currency                   String   @default("INR")
+  paymentExpiryMinutes       Int      @default(30)
+  autoCancelUnpaidAppointments Boolean @default(false)
+  provider                   String   @default("MOCK") // RAZORPAY, MOCK
+  keyId                      String?
+  keySecret                  String?
+  webhookSecret              String?
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+
+  @@index([businessId])
+}
+
+
