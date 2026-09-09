@@ -555,8 +555,8 @@ whatsapp-saas/
 
 #### 1. Clone the Repository
 ```bash
-git clone https://github.com/M-Kaushik25/whatsapp-saas.git
-cd whatsapp-saas
+git clone https://github.com/M-Kaushik25/ai-whatsapp-appointment-automation.git
+cd ai-whatsapp-appointment-automation
 ```
 
 #### 2. Backend Setup

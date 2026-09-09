@@ -36,8 +36,8 @@ flowchart TB
 
 ### Step 1: Clone Repository & Setup Environment Files
 ```bash
-git clone https://github.com/M-Kaushik25/whatsapp-saas.git /var/www/whatsapp-saas
-cd /var/www/whatsapp-saas
+git clone https://github.com/M-Kaushik25/ai-whatsapp-appointment-automation.git /var/www/ai-whatsapp-appointment-automation
+cd /var/www/ai-whatsapp-appointment-automation
 cp .env.example .env
 ```
 
